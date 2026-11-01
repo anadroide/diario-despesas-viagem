@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Diário de Despesas de Viagem</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#b8143a" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Despesas">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@400;500;600&display=swap">
+<style>
+/* Layout: a ledger. Summary tiles up top, entry form, then bars by category/local/day, then the dated list. */
+:root{
+  --bg:#f3f4f0; --surface:#ffffff; --fg:#17201d; --muted:#67706b; --line:#d9ddd6;
+  --accent:#b8143a; --accent-soft:#f9e3e8; --teal:#0f6e63; --teal-soft:#dcefeb; --warn:#9a6400; --warn-soft:#fbefd2;
+  --display:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --body:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141917; --surface:#1d2321; --fg:#eceeea; --muted:#9aa39d; --line:#303834;
+  --accent:#ef5a7d; --accent-soft:#3a1c25; --teal:#4fc2b1; --teal-soft:#193530; --warn:#e8b54a; --warn-soft:#3a2d12; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141917; --surface:#1d2321; --fg:#eceeea; --muted:#9aa39d; --line:#303834;
+  --accent:#ef5a7d; --accent-soft:#3a1c25; --teal:#4fc2b1; --teal-soft:#193530; --warn:#e8b54a; --warn-soft:#3a2d12; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:960px;margin:0 auto;display:grid;gap:24px}
+.wrap>*{min-width:0}
+h1,h2,h3{margin:0;font-family:var(--display);font-weight:400;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:2.3rem;line-height:1.05}
+h2{font-size:1.45rem}
+.eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+header .dates{font-family:var(--display);font-style:italic;font-size:1.15rem;color:var(--muted)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.tile .v{font-family:var(--display);font-size:2rem;line-height:1.05;margin-top:4px}
+.tile.main{border-color:var(--accent);background:var(--accent-soft)}
+.tile.main .v{color:var(--accent)}
+.tile .sub{font-size:.75rem;color:var(--muted);margin-top:4px}
+
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+
+form.add{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+form.add label{display:grid;grid-template-rows:auto 1fr;align-content:start;gap:4px;font-size:.72rem;color:var(--muted);font-weight:500;min-width:0;overflow:hidden}
+form.add .full{grid-column:1 / -1}
+input,select,button{font:inherit;color:inherit}
+input,select{display:block;width:100%;max-width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0;height:40px}
+input[type=date]{-webkit-appearance:none;appearance:none}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.money{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:6px}
+form.add label.check{display:flex;grid-template-rows:none;align-items:center;gap:8px;font-size:.85rem;color:var(--fg);align-self:end;height:40px}
+.check input{width:auto;height:auto;margin:0;flex:none}
+button{border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;background:var(--line)}
+button.primary{background:var(--accent);color:#fff}
+button.small{padding:5px 10px;font-size:.75rem;font-weight:500}
+button.danger{background:var(--accent-soft);color:var(--accent)}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hint{font-size:.75rem;color:var(--muted)}
+
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:118px 1fr 72px;align-items:center;gap:10px;font-size:.82rem}
+.bar .track{height:14px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--teal);border-radius:4px;min-width:2px}
+.bar .fill.acc{background:var(--accent)}
+.bar .val{text-align:right}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+
+.days{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(18px,1fr);gap:4px;height:150px;margin-top:8px;overflow-x:auto}
+.day{display:grid;grid-template-rows:auto 1fr auto;gap:3px;min-width:0;min-height:0}
+.day .amt{font-size:.58rem;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:clip;min-height:1em;line-height:1}
+.day .track{min-height:0;position:relative}
+.day .col{position:absolute;left:0;right:0;bottom:0;background:var(--teal);border-radius:3px 3px 0 0}
+.day .col.before{background:var(--muted)}
+.day .lbl{font-size:.62rem;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden}
+@media (max-width:640px){ .day .amt{display:none} }
+
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right;white-space:nowrap}
+.mtags{display:none}
+.tag{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal);font-weight:600;white-space:nowrap}
+.tag.loc{background:var(--bg);color:var(--muted)}
+.tag.due{background:var(--warn-soft);color:var(--warn)}
+.orig{font-size:.72rem;color:var(--muted)}
+.tablewrap{overflow-x:auto}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.empty strong{color:var(--fg);font-family:var(--display);font-weight:400;font-size:1.3rem;display:block;margin-bottom:4px}
+.banner{font-size:.8rem;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn)}
+.rates{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end}
+.rates label{display:grid;gap:4px;font-size:.72rem;color:var(--muted)}
+@media (max-width:640px){
+  body{padding-block:14px 40px}
+  .wrap{gap:16px}
+  section.card{padding:14px}
+  .tiles{grid-template-columns:1fr 1fr}
+  .tile{padding:11px 12px}
+  .tile .sub{display:none}
+  header .dates{font-size:1rem}
+  .card-head .hint{flex-basis:100%}
+  .bars{gap:10px}
+  .bar{grid-template-columns:1fr auto;grid-template-rows:auto auto;row-gap:3px}
+  .bar .track{grid-column:1 / -1;height:10px}
+  .days{gap:2px;height:110px}
+  .day .lbl{font-size:.58rem}
+  .rates{grid-template-columns:1fr 1fr}
+  .rates button{grid-column:1 / -1}
+  table{font-size:.8rem}
+  th,td{padding:8px 6px}
+  .col-cat,.col-loc{display:none}
+  .mtags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  .mtags .tag{font-size:.62rem}
+  td .orig{white-space:nowrap}
+  form.add{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .two{grid-template-columns:1fr}
+    .tile .v{font-size:1.6rem}
+  h1{font-size:1.9rem}
+}
+@media (prefers-reduced-motion:no-preference){ .bar .fill,.day .col{transition:width .3s,height .3s} }
+</style>
+<style>html{color-scheme:light dark}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Diário de despesas</div>
+      <h1 id="hTitle">A minha viagem</h1>
+    </div>
+    <div class="dates" id="hDates"></div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="card">
+    <div class="card-head"><h2>A viagem</h2><span class="hint">Fica guardado neste browser. Cada pessoa que abrir a página tem o seu próprio registo.</span></div>
+    <div class="rates">
+      <label>Nome da viagem<input id="cName" placeholder="Ex.: Singapura &amp; Malásia"></label>
+      <label>Partida<input id="cStart" type="date"></label>
+      <label>Regresso<input id="cEnd" type="date"></label>
+      <button type="button" id="saveTrip">Guardar viagem</button>
+    </div>
+  </section>
+
+  <div class="tiles">
+    <div class="tile main"><div class="eyebrow">Total gasto</div><div class="v num" id="tTotal">0 €</div><div class="sub" id="tCount">0 despesas</div></div>
+    <div class="tile"><div class="eyebrow">Antes de partir</div><div class="v num" id="tBefore">0 €</div><div class="sub">voos, estadias, seguro…</div></div>
+    <div class="tile"><div class="eyebrow">No destino</div><div class="v num" id="tDuring">0 €</div><div class="sub" id="tPerDay">0 € / dia</div></div>
+    <div class="tile"><div class="eyebrow">Por pagar</div><div class="v num" id="tDue">0 €</div><div class="sub">reservas ainda não liquidadas</div></div>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><h2>Nova despesa</h2><span class="hint">Em moeda local, a conversão para euros é automática.</span></div>
+    <form class="add" id="form">
+      <label class="full">Descrição<input id="fDesc" required placeholder="Ex.: Voo LIS → SIN, Hotel Marina Bay, Hawker centre…"></label>
+      <label>Categoria<select id="fCat"></select></label>
+      <label>Local<select id="fLoc"></select></label>
+      <label>Data<input id="fDate" type="date" required></label>
+      <label>Valor<div class="money"><input id="fAmt" type="number" step="0.01" min="0" inputmode="decimal" required placeholder="0,00"><select id="fCur"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>JPY</option><option>SGD</option><option>MYR</option><option>THB</option><option>BRL</option></select></div></label>
+      <label class="check"><input id="fPaid" type="checkbox" checked> Já paguei</label>
+      <div class="full actions"><button class="primary" type="submit">Adicionar</button><span class="hint" id="formHint"></span></div>
+    </form>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <div class="card-head"><h2>Por categoria</h2></div>
+      <div class="bars" id="byCat"></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Por local</h2></div>
+      <div class="bars" id="byLoc"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><h2>Por dia de viagem</h2><span class="hint">Em euros. "Antes" junta tudo o que tem data anterior à partida.</span></div>
+    <div class="days" id="days"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Todas as despesas</h2><span class="hint" id="listHint"></span></div>
+    <div class="tablewrap" id="list"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Câmbios</h2><span class="hint">Quanto vale 1 € em cada moeda. Ajusta ao câmbio real do cartão.</span></div>
+    <div class="rates">
+      <div id="rateFields" style="display:contents"></div>
+      <button type="button" id="saveRates">Guardar câmbios</button>
+    </div>
+  </section>
+</div>
+
+<script>
+const CATS=["Voos","Estadia","Transportes","Comida","Atividades","Compras","Seguro / vistos","Outros"];
+const LOCS=["Antes da viagem","No destino","Em trânsito"];
+const CURS=["USD","GBP","CHF","JPY","SGD","MYR","THB","BRL"];
+const DEFAULT_RATES={USD:1.08,GBP:0.84,CHF:0.94,JPY:165,SGD:1.45,MYR:4.9,THB:38,BRL:6.1};
+const KEY="diario-viagem-v1";
+let state={trip:{name:"",start:"",end:""},rates:{...DEFAULT_RATES},entries:[]};
+const $=id=>document.getElementById(id);
+const fmt=v=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(v);
+const fmt2=v=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:"EUR"}).format(v);
+const toEur=(amt,cur)=>cur==="EUR"?amt:amt/(state.rates[cur]||1);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const load=()=>{try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.entries){state={...state,...s,rates:{...DEFAULT_RATES,...(s.rates||{})}};}}catch(e){}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){$("banner").textContent="Não consegui guardar neste browser (modo privado ou armazenamento bloqueado).";$("banner").hidden=false;}};
+const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+const MESES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+const longDate=iso=>{const [y,m,d]=iso.split("-");return `${+d} ${MESES[+m-1]} ${y}`;};
+
+CATS.forEach(c=>$("fCat").append(new Option(c,c)));
+LOCS.forEach(l=>$("fLoc").append(new Option(l,l)));
+$("fDate").value=new Date().toISOString().slice(0,10);
+$("rateFields").innerHTML=CURS.map(c=>`<label>1 € em ${c}<input id="r${c}" type="number" step="0.0001" min="0" inputmode="decimal"></label>`).join("");
+
+function renderConfig(){
+  const t=state.trip;
+  $("cName").value=t.name; $("cStart").value=t.start; $("cEnd").value=t.end;
+  $("hTitle").textContent=t.name||"A minha viagem";
+  if(t.start&&t.end&&t.end>=t.start){
+    const n=Math.round((new Date(t.end)-new Date(t.start))/864e5)+1;
+    $("hDates").textContent=`${longDate(t.start)} — ${longDate(t.end)} · ${n} ${n===1?"dia":"dias"}`;
+  } else $("hDates").textContent="Define as datas da viagem abaixo";
+  CURS.forEach(c=>$("r"+c).value=state.rates[c]);
+}
+
+function render(){
+  const t=state.trip, hasDates=t.start&&t.end&&t.end>=t.start;
+  const rows=state.entries.map(e=>({...e,eur:toEur(+e.valor,e.moeda)}));
+  const total=rows.reduce((s,e)=>s+e.eur,0);
+  const before=hasDates?rows.filter(e=>e.data<t.start).reduce((s,e)=>s+e.eur,0):0;
+  const during=total-before;
+  const due=rows.filter(e=>!e.pago).reduce((s,e)=>s+e.eur,0);
+  const days=hasDates?Math.round((new Date(t.end)-new Date(t.start))/864e5)+1:0;
+  $("tTotal").textContent=fmt(total); $("tCount").textContent=rows.length+(rows.length===1?" despesa":" despesas");
+  $("tBefore").textContent=fmt(before); $("tDuring").textContent=fmt(during);
+  $("tPerDay").textContent=days?fmt(during/days)+" / dia":"define as datas";
+  $("tDue").textContent=fmt(due);
+
+  const bars=(el,keys,keyFn,acc)=>{
+    const sums=Object.fromEntries(keys.map(k=>[k,0]));
+    rows.forEach(e=>{sums[keyFn(e)]=(sums[keyFn(e)]||0)+e.eur});
+    const max=Math.max(1,...Object.values(sums));
+    el.innerHTML=keys.filter(k=>sums[k]>0).map(k=>`<div class="bar"><span>${esc(k)}</span><div class="track"><div class="fill ${acc?"acc":""}" style="width:${(sums[k]/max*100).toFixed(1)}%"></div></div><span class="val num">${fmt(sums[k])}</span></div>`).join("")||`<div class="muted hint">Ainda sem valores.</div>`;
+  };
+  bars($("byCat"),CATS,e=>e.categoria,true);
+  bars($("byLoc"),LOCS,e=>e.local,false);
+
+  if(!hasDates){ $("days").innerHTML=`<div class="muted hint" style="grid-column:1/-1;align-self:center">Define as datas da viagem para ver o gasto por dia.</div>`; }
+  else{
+    const dayKeys=["Antes"]; for(let i=0;i<Math.min(days,60);i++)dayKeys.push(addDays(t.start,i));
+    const dsum=Object.fromEntries(dayKeys.map(k=>[k,0]));
+    rows.forEach(e=>{const k=e.data<t.start?"Antes":e.data>t.end?null:e.data; if(k&&k in dsum)dsum[k]+=e.eur;});
+    const dmax=Math.max(1,...Object.values(dsum));
+    $("days").innerHTML=dayKeys.map(k=>`<div class="day" title="${k==="Antes"?"Antes da viagem":k.slice(8)+"/"+k.slice(5,7)}: ${fmt(dsum[k])}"><div class="amt num">${dsum[k]>0?Math.round(dsum[k]):""}</div><div class="track"><div class="col ${k==="Antes"?"before":""}" style="height:${Math.max(dsum[k]>0?3:0,dsum[k]/dmax*100).toFixed(1)}%"></div></div><div class="lbl">${k==="Antes"?"Antes":+k.slice(8)}</div></div>`).join("");
+  }
+
+  if(!rows.length){
+    $("list").innerHTML=`<div class="empty"><strong>Ainda não há despesas.</strong>Começa pelos voos e pelas estadias no formulário acima.</div>`;
+    $("listHint").textContent=""; return;
+  }
+  const sorted=[...rows].sort((a,b)=>b.data.localeCompare(a.data)||b.criado.localeCompare(a.criado));
+  $("listHint").textContent="Mais recentes primeiro";
+  $("list").innerHTML=`<table><thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-loc">Local</th><th class="r">Euros</th><th></th></tr></thead><tbody>${
+    sorted.map(e=>`<tr data-id="${e.id}"><td class="num" style="white-space:nowrap">${e.data.slice(8)}/${e.data.slice(5,7)}</td><td>${esc(e.descricao)}${e.pago?"":' <span class="tag due">por pagar</span>'}<div class="mtags"><span class="tag">${esc(e.categoria)}</span><span class="tag loc">${esc(e.local)}</span></div></td><td class="col-cat"><span class="tag">${esc(e.categoria)}</span></td><td class="col-loc"><span class="tag loc">${esc(e.local)}</span></td><td class="r num">${fmt2(e.eur)}${e.moeda!=="EUR"?`<div class="orig">${(+e.valor).toFixed(2)} ${e.moeda}</div>`:""}</td><td class="r"><button class="small" data-act="del">Apagar</button></td></tr>`).join("")
+  }</tbody></table>`;
+}
+
+$("saveTrip").addEventListener("click",()=>{
+  state.trip={name:$("cName").value.trim(),start:$("cStart").value,end:$("cEnd").value};
+  save(); renderConfig(); render();
+  $("saveTrip").textContent="Guardado"; setTimeout(()=>$("saveTrip").textContent="Guardar viagem",1500);
+});
+
+$("form").addEventListener("submit",ev=>{
+  ev.preventDefault();
+  const e={id:"e"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),descricao:$("fDesc").value.trim(),categoria:$("fCat").value,data:$("fDate").value,local:$("fLoc").value,
+    valor:+$("fAmt").value,moeda:$("fCur").value,pago:$("fPaid").checked,criado:new Date().toISOString()};
+  if(!e.descricao||!(e.valor>0)||!e.data){$("formHint").textContent="Falta a descrição, a data ou o valor.";return;}
+  $("formHint").textContent="";
+  state.entries.push(e); save(); render();
+  $("fDesc").value="";$("fAmt").value="";$("fPaid").checked=true;$("fDesc").focus();
+});
+
+$("list").addEventListener("click",ev=>{
+  const b=ev.target.closest("button[data-act]"); if(!b)return;
+  const id=b.closest("tr").dataset.id;
+  if(b.dataset.act==="del"){ b.textContent="Confirmar?"; b.dataset.act="confirm"; b.classList.add("danger"); setTimeout(()=>{if(b.dataset.act==="confirm"){b.textContent="Apagar";b.dataset.act="del";b.classList.remove("danger");}},4000); return; }
+  state.entries=state.entries.filter(x=>x.id!==id); save(); render();
+});
+
+$("saveRates").addEventListener("click",()=>{
+  CURS.forEach(c=>{const v=+$("r"+c).value; if(v>0)state.rates[c]=v;});
+  save(); render(); $("saveRates").textContent="Guardado"; setTimeout(()=>$("saveRates").textContent="Guardar câmbios",1500);
+});
+
+load(); renderConfig(); render();
+
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
+</script>
+
+</body>
+</html>
