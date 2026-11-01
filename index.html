@@ -92,7 +92,7 @@ th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.08e
 td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 td.r,th.r{text-align:right;white-space:nowrap}
 tr.editing td{background:var(--accent-soft)}
-.mtags{display:none}
+.mtags,.mact{display:none}
 .tag{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal);font-weight:600;white-space:nowrap}
 .tag.loc{background:var(--bg);color:var(--muted)}
 .tag.due{background:var(--warn-soft);color:var(--warn)}
@@ -121,8 +121,13 @@ tr.editing td{background:var(--accent-soft)}
   .rates button{grid-column:1 / -1}
   table{font-size:.8rem}
   th,td{padding:8px 6px}
-  .col-cat,.col-loc{display:none}
+  .col-cat,.col-loc,.col-act{display:none}
   .mtags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  .mact{display:flex;gap:6px;margin-top:8px}
+  .mact button{padding:6px 12px}
+  td:nth-child(2){width:100%}
+  td:first-child{padding-left:0}
+  td:nth-child(5){padding-right:0}
   .mtags .tag{font-size:.62rem}
   td .orig{white-space:nowrap}
   form.add{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -300,8 +305,8 @@ function render(){
   }
   const sorted=[...rows].sort((a,b)=>b.data.localeCompare(a.data)||b.criado.localeCompare(a.criado));
   $("listHint").textContent="Mais recentes primeiro";
-  $("list").innerHTML=`<table><thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-loc">Local</th><th class="r">Euros</th><th></th></tr></thead><tbody>${
-    sorted.map(e=>`<tr data-id="${e.id}"><td class="num" style="white-space:nowrap">${e.data.slice(8)}/${e.data.slice(5,7)}</td><td>${esc(e.descricao)}${e.pago?"":' <span class="tag due">por pagar</span>'}<div class="mtags"><span class="tag">${esc(e.categoria)}</span><span class="tag loc">${esc(e.local)}</span></div></td><td class="col-cat"><span class="tag">${esc(e.categoria)}</span></td><td class="col-loc"><span class="tag loc">${esc(e.local)}</span></td><td class="r num">${fmt2(e.eur)}${e.moeda!=="EUR"?`<div class="orig">${(+e.valor).toFixed(2)} ${e.moeda}</div>`:""}</td><td class="r" style="white-space:nowrap"><button class="small" data-act="edit">Editar</button> <button class="small" data-act="del">Apagar</button></td></tr>`).join("")
+  $("list").innerHTML=`<table><thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-loc">Local</th><th class="r">Euros</th><th class="col-act"></th></tr></thead><tbody>${
+    sorted.map(e=>`<tr data-id="${e.id}"><td class="num" style="white-space:nowrap">${e.data.slice(8)}/${e.data.slice(5,7)}</td><td>${esc(e.descricao)}${e.pago?"":' <span class="tag due">por pagar</span>'}<div class="mtags"><span class="tag">${esc(e.categoria)}</span><span class="tag loc">${esc(e.local)}</span></div><div class="mact"><button class="small" data-act="edit">Editar</button><button class="small" data-act="del">Apagar</button></div></td><td class="col-cat"><span class="tag">${esc(e.categoria)}</span></td><td class="col-loc"><span class="tag loc">${esc(e.local)}</span></td><td class="r num">${fmt2(e.eur)}${e.moeda!=="EUR"?`<div class="orig">${(+e.valor).toFixed(2)} ${e.moeda}</div>`:""}</td><td class="r col-act" style="white-space:nowrap"><button class="small" data-act="edit">Editar</button> <button class="small" data-act="del">Apagar</button></td></tr>`).join("")
   }</tbody></table>`;
 }
 
