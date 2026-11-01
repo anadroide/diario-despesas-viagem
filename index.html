@@ -205,6 +205,11 @@ td.r,th.r{text-align:right;white-space:nowrap}
       <button type="button" id="saveRates">Guardar câmbios</button>
     </div>
   </section>
+  <section class="card">
+    <div class="card-head"><h2>Cópia de segurança</h2><span class="hint">Os dados vivem só neste dispositivo. Exporta de vez em quando e guarda o texto (notas, email, Drive). Para mudar de telemóvel, cola-o aqui e importa.</span></div>
+    <div class="actions" style="margin-bottom:10px"><button type="button" id="btnExport">Exportar (copiar)</button><button type="button" id="btnShare" hidden>Partilhar ficheiro</button><button type="button" id="btnImport">Importar o que está colado</button><span class="hint" id="bkHint"></span></div>
+    <textarea id="bkText" rows="4" placeholder="Ao exportar, o texto aparece aqui e é copiado. Para importar, cola aqui a cópia e carrega em Importar." style="width:100%;font:inherit;font-size:.75rem;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;resize:vertical"></textarea>
+  </section>
 </div>
 
 <script>
@@ -309,6 +314,28 @@ $("list").addEventListener("click",ev=>{
 $("saveRates").addEventListener("click",()=>{
   CURS.forEach(c=>{const v=+$("r"+c).value; if(v>0)state.rates[c]=v;});
   save(); render(); $("saveRates").textContent="Guardado"; setTimeout(()=>$("saveRates").textContent="Guardar câmbios",1500);
+});
+
+const bk=$("bkText");
+$("btnExport").addEventListener("click",async()=>{
+  const txt=JSON.stringify({app:"diario-viagem",exportado:new Date().toISOString(),...state});
+  bk.value=txt; let msg="Exportado. ";
+  try{await navigator.clipboard.writeText(txt);msg+="Copiado para a área de transferência.";}catch(e){bk.select();msg+="Seleciona o texto e copia.";}
+  $("bkHint").textContent=msg;
+});
+if(navigator.share&&navigator.canShare){$("btnShare").hidden=false;$("btnShare").addEventListener("click",async()=>{
+  const f=new File([JSON.stringify({app:"diario-viagem",exportado:new Date().toISOString(),...state})],"despesas-viagem.json",{type:"application/json"});
+  try{ if(navigator.canShare({files:[f]})) await navigator.share({files:[f],title:"Despesas de viagem"}); else throw 0; }catch(e){ $("bkHint").textContent="Não deu para partilhar; usa Exportar."; }
+});}
+$("btnImport").addEventListener("click",()=>{
+  let d; try{d=JSON.parse(bk.value);}catch(e){$("bkHint").textContent="Isso não é uma cópia válida.";return;}
+  if(!d||!Array.isArray(d.entries)){$("bkHint").textContent="Isso não é uma cópia válida.";return;}
+  const ids=new Set(state.entries.map(e=>e.id)); let novas=0;
+  d.entries.forEach(e=>{if(e&&e.id&&!ids.has(e.id)){state.entries.push(e);novas++;}});
+  if(d.trip&&(d.trip.name||d.trip.start))state.trip={...state.trip,...d.trip};
+  if(d.rates)state.rates={...state.rates,...d.rates};
+  save(); renderConfig(); render();
+  $("bkHint").textContent=`Importado: ${novas} ${novas===1?"despesa nova":"despesas novas"} (as repetidas foram ignoradas).`;
 });
 
 load(); renderConfig(); render();

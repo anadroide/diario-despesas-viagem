@@ -1,0 +1,46 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+      - name: Preparar chave de assinatura
+        working-directory: android
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > release.jks
+            echo "Chave estável (segredo do repositório)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            keytool -genkeypair -keystore release.jks -storepass android -keypass android -alias despesas -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Despesas temp" >/dev/null 2>&1
+            echo "⚠️ Sem o segredo KEYSTORE_B64: APK assinado com chave temporária. Atualizações futuras exigem desinstalar a app (perde dados). Adiciona os segredos KEYSTORE_B64 e KEYSTORE_PASSWORD." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Build release APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: gradle assembleRelease --no-daemon
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk despesas-viagem.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: despesas-viagem-apk, path: despesas-viagem.apk }
+      - name: Publish to "latest" release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest despesas-viagem.apk --title "Despesas de Viagem — APK" --notes "APK Android. Descarrega no telemóvel, abre o ficheiro e autoriza a instalação quando perguntado."

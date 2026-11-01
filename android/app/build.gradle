@@ -1,0 +1,31 @@
+plugins { id("com.android.application") }
+
+android {
+    namespace "pt.ana.despesas"
+    compileSdk 34
+    defaultConfig {
+        applicationId "pt.ana.despesas"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+    signingConfigs {
+        release {
+            // A chave e a password vêm dos segredos do GitHub; o workflow escreve a chave em android/release.jks
+            storeFile file("../release.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            keyAlias "despesas"
+            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.webkit:webkit:1.11.0"
+}
