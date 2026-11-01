@@ -148,7 +148,12 @@ td.r,th.r{text-align:right;white-space:nowrap}
   <div id="banner" class="banner" hidden></div>
 
   <section class="card">
-    <div class="card-head"><h2>A viagem</h2><span class="hint">Fica guardado neste browser. Cada pessoa que abrir a página tem o seu próprio registo.</span></div>
+    <div class="card-head"><h2>As minhas viagens</h2><span class="hint">Fica guardado neste browser. Cada pessoa que abrir a página tem o seu próprio registo.</span></div>
+    <div class="rates" style="margin-bottom:14px">
+      <label style="grid-column:span 2">Viagem<select id="tripSel"></select></label>
+      <button type="button" id="newTrip">+ Nova viagem</button>
+      <button type="button" id="delTrip" class="danger">Apagar esta viagem</button>
+    </div>
     <div class="rates">
       <label>Nome da viagem<input id="cName" placeholder="Ex.: Singapura &amp; Malásia"></label>
       <label>Partida<input id="cStart" type="date"></label>
@@ -217,14 +222,23 @@ const CATS=["Voos","Estadia","Transportes","Comida","Atividades","Compras","Segu
 const LOCS=["Antes da viagem","No destino","Em trânsito"];
 const CURS=["USD","GBP","CHF","JPY","SGD","MYR","THB","BRL"];
 const DEFAULT_RATES={USD:1.08,GBP:0.84,CHF:0.94,JPY:165,SGD:1.45,MYR:4.9,THB:38,BRL:6.1};
-const KEY="diario-viagem-v1";
-let state={trip:{name:"",start:"",end:""},rates:{...DEFAULT_RATES},entries:[]};
+const KEY="diario-viagem-v2", KEY_V1="diario-viagem-v1";
+const newTrip=(name="")=>({id:"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,start:"",end:"",rates:{...DEFAULT_RATES},entries:[]});
+let state={trips:[newTrip()],current:null}; state.current=state.trips[0].id;
+const cur=()=>state.trips.find(t=>t.id===state.current)||state.trips[0];
 const $=id=>document.getElementById(id);
 const fmt=v=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(v);
 const fmt2=v=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:"EUR"}).format(v);
-const toEur=(amt,cur)=>cur==="EUR"?amt:amt/(state.rates[cur]||1);
+const toEur=(amt,c)=>c==="EUR"?amt:amt/(cur().rates[c]||1);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const load=()=>{try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.entries){state={...state,...s,rates:{...DEFAULT_RATES,...(s.rates||{})}};}}catch(e){}};
+const load=()=>{try{
+  const s=JSON.parse(localStorage.getItem(KEY)||"null");
+  if(s&&Array.isArray(s.trips)&&s.trips.length){state={trips:s.trips.map(t=>({...newTrip(),...t,rates:{...DEFAULT_RATES,...(t.rates||{})}})),current:s.current};}
+  else{ const v1=JSON.parse(localStorage.getItem(KEY_V1)||"null"); // migração da versão de uma só viagem
+    if(v1&&Array.isArray(v1.entries)){const t={...newTrip(v1.trip?.name||""),start:v1.trip?.start||"",end:v1.trip?.end||"",rates:{...DEFAULT_RATES,...(v1.rates||{})},entries:v1.entries};state={trips:[t],current:t.id};save();}
+  }
+  if(!state.trips.find(t=>t.id===state.current))state.current=state.trips[0].id;
+}catch(e){}};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){$("banner").textContent="Não consegui guardar neste browser (modo privado ou armazenamento bloqueado).";$("banner").hidden=false;}};
 const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
 const MESES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
@@ -236,19 +250,21 @@ $("fDate").value=new Date().toISOString().slice(0,10);
 $("rateFields").innerHTML=CURS.map(c=>`<label>1 € em ${c}<input id="r${c}" type="number" step="0.0001" min="0" inputmode="decimal"></label>`).join("");
 
 function renderConfig(){
-  const t=state.trip;
+  const t=cur();
+  $("tripSel").innerHTML=state.trips.map(x=>`<option value="${x.id}"${x.id===t.id?" selected":""}>${esc(x.name||"Viagem sem nome")}${x.start?" · "+x.start.slice(0,4):""}</option>`).join("");
+  $("delTrip").disabled=state.trips.length<2;
   $("cName").value=t.name; $("cStart").value=t.start; $("cEnd").value=t.end;
   $("hTitle").textContent=t.name||"A minha viagem";
   if(t.start&&t.end&&t.end>=t.start){
     const n=Math.round((new Date(t.end)-new Date(t.start))/864e5)+1;
     $("hDates").textContent=`${longDate(t.start)} — ${longDate(t.end)} · ${n} ${n===1?"dia":"dias"}`;
   } else $("hDates").textContent="Define as datas da viagem abaixo";
-  CURS.forEach(c=>$("r"+c).value=state.rates[c]);
+  CURS.forEach(c=>$("r"+c).value=t.rates[c]);
 }
 
 function render(){
-  const t=state.trip, hasDates=t.start&&t.end&&t.end>=t.start;
-  const rows=state.entries.map(e=>({...e,eur:toEur(+e.valor,e.moeda)}));
+  const t=cur(), hasDates=t.start&&t.end&&t.end>=t.start;
+  const rows=t.entries.map(e=>({...e,eur:toEur(+e.valor,e.moeda)}));
   const total=rows.reduce((s,e)=>s+e.eur,0);
   const before=hasDates?rows.filter(e=>e.data<t.start).reduce((s,e)=>s+e.eur,0):0;
   const during=total-before;
@@ -289,9 +305,17 @@ function render(){
 }
 
 $("saveTrip").addEventListener("click",()=>{
-  state.trip={name:$("cName").value.trim(),start:$("cStart").value,end:$("cEnd").value};
+  Object.assign(cur(),{name:$("cName").value.trim(),start:$("cStart").value,end:$("cEnd").value});
   save(); renderConfig(); render();
   $("saveTrip").textContent="Guardado"; setTimeout(()=>$("saveTrip").textContent="Guardar viagem",1500);
+});
+
+$("tripSel").addEventListener("change",()=>{state.current=$("tripSel").value;save();renderConfig();render();});
+$("newTrip").addEventListener("click",()=>{const t=newTrip();state.trips.push(t);state.current=t.id;save();renderConfig();render();$("cName").focus();});
+$("delTrip").addEventListener("click",()=>{
+  const b=$("delTrip"); if(state.trips.length<2)return;
+  if(b.dataset.act!=="confirm"){b.dataset.act="confirm";b.textContent="Confirmar? Apaga todas as despesas desta viagem";setTimeout(()=>{if(b.dataset.act==="confirm"){b.dataset.act="";b.textContent="Apagar esta viagem";}},5000);return;}
+  state.trips=state.trips.filter(t=>t.id!==state.current);state.current=state.trips[0].id;b.dataset.act="";b.textContent="Apagar esta viagem";save();renderConfig();render();
 });
 
 $("form").addEventListener("submit",ev=>{
@@ -300,7 +324,7 @@ $("form").addEventListener("submit",ev=>{
     valor:+$("fAmt").value,moeda:$("fCur").value,pago:$("fPaid").checked,criado:new Date().toISOString()};
   if(!e.descricao||!(e.valor>0)||!e.data){$("formHint").textContent="Falta a descrição, a data ou o valor.";return;}
   $("formHint").textContent="";
-  state.entries.push(e); save(); render();
+  cur().entries.push(e); save(); render();
   $("fDesc").value="";$("fAmt").value="";$("fPaid").checked=true;$("fDesc").focus();
 });
 
@@ -308,34 +332,42 @@ $("list").addEventListener("click",ev=>{
   const b=ev.target.closest("button[data-act]"); if(!b)return;
   const id=b.closest("tr").dataset.id;
   if(b.dataset.act==="del"){ b.textContent="Confirmar?"; b.dataset.act="confirm"; b.classList.add("danger"); setTimeout(()=>{if(b.dataset.act==="confirm"){b.textContent="Apagar";b.dataset.act="del";b.classList.remove("danger");}},4000); return; }
-  state.entries=state.entries.filter(x=>x.id!==id); save(); render();
+  cur().entries=cur().entries.filter(x=>x.id!==id); save(); render();
 });
 
 $("saveRates").addEventListener("click",()=>{
-  CURS.forEach(c=>{const v=+$("r"+c).value; if(v>0)state.rates[c]=v;});
+  CURS.forEach(c=>{const v=+$("r"+c).value; if(v>0)cur().rates[c]=v;});
   save(); render(); $("saveRates").textContent="Guardado"; setTimeout(()=>$("saveRates").textContent="Guardar câmbios",1500);
 });
 
 const bk=$("bkText");
 $("btnExport").addEventListener("click",async()=>{
-  const txt=JSON.stringify({app:"diario-viagem",exportado:new Date().toISOString(),...state});
+  const txt=JSON.stringify({app:"diario-viagem",versao:2,exportado:new Date().toISOString(),trips:state.trips});
   bk.value=txt; let msg="Exportado. ";
   try{await navigator.clipboard.writeText(txt);msg+="Copiado para a área de transferência.";}catch(e){bk.select();msg+="Seleciona o texto e copia.";}
   $("bkHint").textContent=msg;
 });
 if(navigator.share&&navigator.canShare){$("btnShare").hidden=false;$("btnShare").addEventListener("click",async()=>{
-  const f=new File([JSON.stringify({app:"diario-viagem",exportado:new Date().toISOString(),...state})],"despesas-viagem.json",{type:"application/json"});
+  const f=new File([JSON.stringify({app:"diario-viagem",versao:2,exportado:new Date().toISOString(),trips:state.trips})],"despesas-viagem.json",{type:"application/json"});
   try{ if(navigator.canShare({files:[f]})) await navigator.share({files:[f],title:"Despesas de viagem"}); else throw 0; }catch(e){ $("bkHint").textContent="Não deu para partilhar; usa Exportar."; }
 });}
 $("btnImport").addEventListener("click",()=>{
   let d; try{d=JSON.parse(bk.value);}catch(e){$("bkHint").textContent="Isso não é uma cópia válida.";return;}
-  if(!d||!Array.isArray(d.entries)){$("bkHint").textContent="Isso não é uma cópia válida.";return;}
-  const ids=new Set(state.entries.map(e=>e.id)); let novas=0;
-  d.entries.forEach(e=>{if(e&&e.id&&!ids.has(e.id)){state.entries.push(e);novas++;}});
-  if(d.trip&&(d.trip.name||d.trip.start))state.trip={...state.trip,...d.trip};
-  if(d.rates)state.rates={...state.rates,...d.rates};
+  let trips=null;
+  if(d&&Array.isArray(d.trips))trips=d.trips;
+  else if(d&&Array.isArray(d.entries))trips=[{...newTrip(d.trip?.name||"Viagem importada"),start:d.trip?.start||"",end:d.trip?.end||"",rates:d.rates||{},entries:d.entries}];
+  if(!trips){$("bkHint").textContent="Isso não é uma cópia válida.";return;}
+  let novasV=0,novasD=0;
+  trips.forEach(it=>{
+    if(!it||!Array.isArray(it.entries))return;
+    let t=state.trips.find(x=>x.id===it.id);
+    if(!t){t={...newTrip(it.name||""),id:it.id||newTrip().id,start:it.start||"",end:it.end||"",rates:{...DEFAULT_RATES,...(it.rates||{})}};state.trips.push(t);novasV++;}
+    const ids=new Set(t.entries.map(e=>e.id));
+    it.entries.forEach(e=>{if(e&&e.id&&!ids.has(e.id)){t.entries.push(e);novasD++;}});
+  });
+  if(state.trips.length>1&&!cur().name&&!cur().entries.length){state.trips=state.trips.filter(t=>t.id!==cur().id);state.current=state.trips[0].id;} // remove a viagem vazia inicial
   save(); renderConfig(); render();
-  $("bkHint").textContent=`Importado: ${novas} ${novas===1?"despesa nova":"despesas novas"} (as repetidas foram ignoradas).`;
+  $("bkHint").textContent=`Importado: ${novasV} ${novasV===1?"viagem nova":"viagens novas"}, ${novasD} ${novasD===1?"despesa nova":"despesas novas"} (as repetidas foram ignoradas).`;
 });
 
 load(); renderConfig(); render();
