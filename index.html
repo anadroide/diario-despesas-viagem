@@ -91,6 +91,7 @@ table{width:100%;border-collapse:collapse;font-size:.85rem}
 th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
 td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 td.r,th.r{text-align:right;white-space:nowrap}
+tr.editing td{background:var(--accent-soft)}
 .mtags{display:none}
 .tag{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:999px;background:var(--teal-soft);color:var(--teal);font-weight:600;white-space:nowrap}
 .tag.loc{background:var(--bg);color:var(--muted)}
@@ -170,7 +171,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
   </div>
 
   <section class="card">
-    <div class="card-head"><h2>Nova despesa</h2><span class="hint">Em moeda local, a conversão para euros é automática.</span></div>
+    <div class="card-head"><h2 id="formTitle">Nova despesa</h2><span class="hint">Em moeda local, a conversão para euros é automática.</span></div>
     <form class="add" id="form">
       <label class="full">Descrição<input id="fDesc" required placeholder="Ex.: Voo LIS → SIN, Hotel Marina Bay, Hawker centre…"></label>
       <label>Categoria<select id="fCat"></select></label>
@@ -178,7 +179,7 @@ td.r,th.r{text-align:right;white-space:nowrap}
       <label>Data<input id="fDate" type="date" required></label>
       <label>Valor<div class="money"><input id="fAmt" type="number" step="0.01" min="0" inputmode="decimal" required placeholder="0,00"><select id="fCur"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>JPY</option><option>SGD</option><option>MYR</option><option>THB</option><option>BRL</option></select></div></label>
       <label class="check"><input id="fPaid" type="checkbox" checked> Já paguei</label>
-      <div class="full actions"><button class="primary" type="submit">Adicionar</button><span class="hint" id="formHint"></span></div>
+      <div class="full actions"><input type="hidden" id="fId"><button class="primary" type="submit" id="fSubmit">Adicionar</button><button type="button" id="fCancel" hidden>Cancelar</button><span class="hint" id="formHint"></span></div>
     </form>
   </section>
 
@@ -300,7 +301,7 @@ function render(){
   const sorted=[...rows].sort((a,b)=>b.data.localeCompare(a.data)||b.criado.localeCompare(a.criado));
   $("listHint").textContent="Mais recentes primeiro";
   $("list").innerHTML=`<table><thead><tr><th>Data</th><th>Descrição</th><th class="col-cat">Categoria</th><th class="col-loc">Local</th><th class="r">Euros</th><th></th></tr></thead><tbody>${
-    sorted.map(e=>`<tr data-id="${e.id}"><td class="num" style="white-space:nowrap">${e.data.slice(8)}/${e.data.slice(5,7)}</td><td>${esc(e.descricao)}${e.pago?"":' <span class="tag due">por pagar</span>'}<div class="mtags"><span class="tag">${esc(e.categoria)}</span><span class="tag loc">${esc(e.local)}</span></div></td><td class="col-cat"><span class="tag">${esc(e.categoria)}</span></td><td class="col-loc"><span class="tag loc">${esc(e.local)}</span></td><td class="r num">${fmt2(e.eur)}${e.moeda!=="EUR"?`<div class="orig">${(+e.valor).toFixed(2)} ${e.moeda}</div>`:""}</td><td class="r"><button class="small" data-act="del">Apagar</button></td></tr>`).join("")
+    sorted.map(e=>`<tr data-id="${e.id}"><td class="num" style="white-space:nowrap">${e.data.slice(8)}/${e.data.slice(5,7)}</td><td>${esc(e.descricao)}${e.pago?"":' <span class="tag due">por pagar</span>'}<div class="mtags"><span class="tag">${esc(e.categoria)}</span><span class="tag loc">${esc(e.local)}</span></div></td><td class="col-cat"><span class="tag">${esc(e.categoria)}</span></td><td class="col-loc"><span class="tag loc">${esc(e.local)}</span></td><td class="r num">${fmt2(e.eur)}${e.moeda!=="EUR"?`<div class="orig">${(+e.valor).toFixed(2)} ${e.moeda}</div>`:""}</td><td class="r" style="white-space:nowrap"><button class="small" data-act="edit">Editar</button> <button class="small" data-act="del">Apagar</button></td></tr>`).join("")
   }</tbody></table>`;
 }
 
@@ -320,19 +321,30 @@ $("delTrip").addEventListener("click",()=>{
 
 $("form").addEventListener("submit",ev=>{
   ev.preventDefault();
-  const e={id:"e"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),descricao:$("fDesc").value.trim(),categoria:$("fCat").value,data:$("fDate").value,local:$("fLoc").value,
-    valor:+$("fAmt").value,moeda:$("fCur").value,pago:$("fPaid").checked,criado:new Date().toISOString()};
-  if(!e.descricao||!(e.valor>0)||!e.data){$("formHint").textContent="Falta a descrição, a data ou o valor.";return;}
+  const vals={descricao:$("fDesc").value.trim(),categoria:$("fCat").value,data:$("fDate").value,local:$("fLoc").value,
+    valor:+$("fAmt").value,moeda:$("fCur").value,pago:$("fPaid").checked};
+  if(!vals.descricao||!(vals.valor>0)||!vals.data){$("formHint").textContent="Falta a descrição, a data ou o valor.";return;}
   $("formHint").textContent="";
-  cur().entries.push(e); save(); render();
-  $("fDesc").value="";$("fAmt").value="";$("fPaid").checked=true;$("fDesc").focus();
+  const editing=$("fId").value, ex=editing&&cur().entries.find(x=>x.id===editing);
+  if(ex){ Object.assign(ex,vals,{editado:new Date().toISOString()}); }
+  else cur().entries.push({id:"e"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),...vals,criado:new Date().toISOString()});
+  save(); render(); resetForm(); $("fDesc").focus();
 });
 
+function resetForm(){ $("fId").value="";$("fDesc").value="";$("fAmt").value="";$("fPaid").checked=true;$("formTitle").textContent="Nova despesa";$("fSubmit").textContent="Adicionar";$("fCancel").hidden=true;document.querySelectorAll("tr.editing").forEach(t=>t.classList.remove("editing")); }
+$("fCancel").addEventListener("click",resetForm);
 $("list").addEventListener("click",ev=>{
   const b=ev.target.closest("button[data-act]"); if(!b)return;
   const id=b.closest("tr").dataset.id;
+  if(b.dataset.act==="edit"){
+    const e=cur().entries.find(x=>x.id===id); if(!e)return;
+    $("fId").value=e.id;$("fDesc").value=e.descricao;$("fCat").value=e.categoria;$("fDate").value=e.data;$("fLoc").value=e.local;$("fAmt").value=e.valor;$("fCur").value=e.moeda;$("fPaid").checked=!!e.pago;
+    $("formTitle").textContent="Editar despesa";$("fSubmit").textContent="Guardar alterações";$("fCancel").hidden=false;
+    document.querySelectorAll("tr.editing").forEach(t=>t.classList.remove("editing")); b.closest("tr").classList.add("editing");
+    $("form").scrollIntoView({behavior:"smooth",block:"start"}); return;
+  }
   if(b.dataset.act==="del"){ b.textContent="Confirmar?"; b.dataset.act="confirm"; b.classList.add("danger"); setTimeout(()=>{if(b.dataset.act==="confirm"){b.textContent="Apagar";b.dataset.act="del";b.classList.remove("danger");}},4000); return; }
-  cur().entries=cur().entries.filter(x=>x.id!==id); save(); render();
+  cur().entries=cur().entries.filter(x=>x.id!==id); if($("fId").value===id)resetForm(); save(); render();
 });
 
 $("saveRates").addEventListener("click",()=>{
